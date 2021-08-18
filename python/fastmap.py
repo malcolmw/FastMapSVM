@@ -40,16 +40,28 @@ class FastMap(object):
     @property
     def pivots(self):
         
-        if not hasattr(self, "_pivots"):
-            self.hdf5.require_dataset(
+        if "pivots" not in self.hdf5:
+            self.hdf5.create_dataset(
                 "pivots", 
                 (self.ndim, 2, *self.database.shape[1:]), 
                 self.database.dtype,
-                exact=True,
                 fillvalue=np.nan
             )
             
         return (self.hdf5["pivots"])
+    
+    @property
+    def pivot_ids(self):
+        
+        if "pivot_ids" not in self.hdf5:
+            self.hdf5.create_dataset(
+                "pivot_ids", 
+                (self.ndim, 2), 
+                np.uint16,
+                fillvalue=np.nan
+            )
+            
+        return (self.hdf5["pivot_ids"])
 
 
     def __init__(self, database, distance, ndim, path):
@@ -100,7 +112,7 @@ class FastMap(object):
         self.hdf5.close()
         
         return (True)
-    
+
     
     def distance(self, iobj, jobj):
         """
@@ -119,11 +131,34 @@ class FastMap(object):
         """
 
         dist = self._distance(self.database[iobj], self.database[jobj])
-        
+                    
         for i in range(self._ihyprpln):
             dist = np.sqrt(dist**2 - (self.image[iobj, i] - self.image[jobj, i])**2)
 
         return (dist)
+
+
+    def embed(self, obj):
+        """
+        Return the embedding (image) of the given object.
+        """
+        
+        image = np.zeros(self.ndim, dtype=np.float32)
+        
+        for self._ihyprpln in range(self.ndim):
+            
+            ipiv, jpiv = self.pivot_ids[self._ihyprpln]
+            d_ij = self.distance(ipiv, jpiv)
+            d_ik = self._distance(self.database[ipiv], obj)
+            d_jk = self._distance(self.database[jpiv], obj)
+            
+            for i in range(self._ihyprpln):
+                d_ik = np.sqrt(d_ik**2 - (self.image[ipiv, i] - image[i])**2)
+                d_jk = np.sqrt(d_jk**2 - (self.image[jpiv, i] - image[i])**2)
+            
+            image[self._ihyprpln] = (d_ik**2 + d_ij**2 - d_jk**2)  /  (2 * d_ij)
+            
+        return (image)
     
     
     def embed_database(self):
@@ -134,6 +169,7 @@ class FastMap(object):
         for self._ihyprpln in range(self.ndim):
 
             ipiv, jpiv = self._choose_pivots()
+            self.pivot_ids[self._ihyprpln] = [ipiv, jpiv]
             self.pivots[self._ihyprpln, 0] = self.database[ipiv]
             self.pivots[self._ihyprpln, 1] = self.database[jpiv]
             d_ij = self.distance(ipiv, jpiv)
@@ -165,11 +201,21 @@ class FastMap(object):
 
 def correlate(a, b):
     """
-    Return the normalized cross-correlation of a and b.
+    Return the (naively) normalized cross-correlation of a and b.
+    a and b must be identical shape.
     """
     
-    a = (a - np.mean(a)) / (np.std(a) * len(a))
-    b = (b - np.mean(b)) / (np.std(b))
+    if a.shape != b.shape:
+        raise (
+            NotImplementedError(
+                "Proper normalization has not been implemented for signals"
+                " of different lengths."
+            )
+        )
+    
+    a = (a - np.mean(a)) / np.sqrt(np.var(a) * len(a))
+    b = (b - np.mean(b)) / np.sqrt(np.var(b) * len(b))
+    
     corr = np.correlate(a, b, "full")
     
     return (corr)
@@ -177,7 +223,7 @@ def correlate(a, b):
 
 def distance(obj_a, obj_b, force_triangle_ineq=False):
     """
-    Return the *metric* distance between object obj_a and object obj_b.
+    Return the distance between object obj_a and object obj_b.
     
     Arguments:
     - obj_a: object
