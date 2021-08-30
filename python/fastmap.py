@@ -30,7 +30,13 @@ class FastMap(object):
             
         return (self.hdf5["image"])
 
+    
+    @property
+    def labels(self):
+        
+        return (self._labels)
 
+    
     @property
     def ndim(self):
     
@@ -62,10 +68,25 @@ class FastMap(object):
             )
             
         return (self.hdf5["pivot_ids"])
+    
+    
+    @property
+    def pivot_labels(self):
+        
+        if "pivot_labels" not in self.hdf5:
+            self.hdf5.create_dataset(
+                "pivot_labels", 
+                (self.ndim, 2), 
+                np.int16,
+                fillvalue=-1
+            )
+            
+        return (self.hdf5["pivot_labels"])
+    
 
-
-    def __init__(self, database, distance, ndim, path):
+    def __init__(self, database, labels, distance, ndim, path):
         self._database = database
+        self._labels = labels
         self._distance = distance
         self._ihyprpln = 0
         self._ndim = ndim
@@ -73,19 +94,36 @@ class FastMap(object):
         
         
 
+    #def _choose_pivots(self):
+    #    """
+    #    A heuristic algorithm to choose distant pivot objects 
+    #    (Faloutsos and Lin, 1995).
+    #    """
+    #    
+    #    jobj = np.random.randint(0, high=self.database.shape[0])
+    #    while jobj in self.pivot_ids[:self._ihyprpln].flatten():
+    #        jobj = np.random.randint(0, high=self.database.shape[0])
+    #    
+    #    iobj = self.furthest(jobj)
+    #    jobj = self.furthest(iobj)
+    #    
+    #    return (iobj, jobj)
     def _choose_pivots(self):
         """
         A heuristic algorithm to choose distant pivot objects 
         (Faloutsos and Lin, 1995).
-        
-        .. todo: Make sure you don't reuse a pivot object.
         """
-        
-        jobj = np.random.randint(0, high=self.database.shape[0])
-        iobj = self.furthest(jobj)
-        jobj = self.furthest(iobj)
-        
+
+        jobj = np.random.choice(np.argwhere(self.labels == 0).flatten())
+
+        while jobj in self.pivot_ids[:self._ihyprpln].flatten():
+            jobj = np.random.choice(np.argwhere(self.labels == 0).flatten())
+
+        iobj = self.furthest(jobj, label=1)
+        jobj = self.furthest(iobj, label=0)
+
         return (iobj, jobj)
+
 
     
     def _init_hdf5(self, path):
@@ -186,19 +224,34 @@ class FastMap(object):
 
         return (True)
     
-    def furthest(self, iobj):
+    #def furthest(self, iobj):
+    #    """
+    #    Return the index of the object furthest from object with index 
+    #    *iobj*.
+    #    """
+    #    
+    #    nobj = self.database.shape[0]
+    #    
+    #    return (
+    #        np.argmax([self.distance(iobj, jobj) for jobj in range(nobj)])
+    #    )
+
+    def furthest(self, iobj, label=None):
         """
         Return the index of the object furthest from object with index 
         *iobj*.
         """
-        
-        nobj = self.database.shape[0]
-        
+    
+        if label is None:
+            idxs = np.arange(self.data.shape[0])
+        else:
+            idxs = np.argwhere(self.labels == label).flatten()
+            
+    
         return (
-            np.argmax([self.distance(iobj, jobj) for jobj in range(nobj)])
+            idxs[np.argmax([self.distance(iobj, jobj) for jobj in idxs])]
         )
-
-
+    
 def correlate(a, b):
     """
     Return the (naively) normalized cross-correlation of a and b.
