@@ -1,6 +1,10 @@
 import h5py
 import numpy as np
+import pandas as pd
 import pathlib
+import scipy.signal
+
+_reduce = lambda c: np.mean(c, axis=0)
 
 class FastMap(object):
         
@@ -252,7 +256,31 @@ class FastMap(object):
             idxs[np.argmax([self.distance(iobj, jobj) for jobj in idxs])]
         )
     
-def correlate(a, b):
+    
+def correlate(a, b, mode="valid"):
+
+    if len(a) > len(b):
+        a, b = b, a
+
+    a = pd.Series(a)
+    b = pd.Series(b)
+    n = len(a)
+
+    a = a - np.mean(a)
+    b = b - np.mean(b)
+    
+    c = scipy.signal.correlate(b, a, mode=mode)
+    
+    if mode == "valid":
+        norm = n * np.std(a) * b.rolling(n).std().dropna().values
+    elif mode == "same":
+        norm = n * np.std(a) * b.rolling(n, min_periods=0, center=True).std().values
+    c /= norm
+    
+    return (c)
+
+    
+def correlate_dep(a, b):
     """
     Return the (naively) normalized cross-correlation of a and b.
     a and b must be identical shape.
@@ -274,7 +302,13 @@ def correlate(a, b):
     return (corr)
 
 
-def distance(obj_a, obj_b, force_triangle_ineq=False):
+def distance(
+    obj_a, 
+    obj_b, 
+    mode="valid", 
+    reduce=_reduce, 
+    force_triangle_ineq=False
+):
     """
     Return the distance between object obj_a and object obj_b.
     
@@ -284,7 +318,7 @@ def distance(obj_a, obj_b, force_triangle_ineq=False):
     - obj_b: object
         Second object to consider.
     """
-    dist = 1 - np.max(np.abs(correlate(obj_a, obj_b)))
+    dist = 1 - np.max(np.abs(ndcorrelate(obj_a, obj_b, mode=mode, reduce=reduce)))
     
     if force_triangle_ineq is True:
         if dist == 0:
@@ -294,3 +328,32 @@ def distance(obj_a, obj_b, force_triangle_ineq=False):
 
     else:
         return (dist)
+
+
+def ndcorrelate(a, b, mode="valid", reduce=_reduce):
+
+    assert a.ndim == b.ndim, "a and b must have the same number of dimensions"
+    
+    if a.ndim == 1:
+        return (correlate(a, b, mode=mode))
+
+    assert a.shape[:-1] == b.shape[:-1]
+    
+    na, nb = a.shape[-1], b.shape[-1]
+    
+    if na > nb:
+        a, b = b, a
+        na, nb = nb, na
+
+    a = a.reshape(-1, na)
+    b = b.reshape(-1, nb)
+    n = a.shape[0]
+    
+    if mode == "valid":
+        c = np.zeros((n, nb - na + 1))
+    elif mode == "same":
+        c = np.zeros((n, nb))
+    for i in range(n):
+        c[i] = correlate(a[i], b[i], mode=mode)
+    
+    return (reduce(c))
