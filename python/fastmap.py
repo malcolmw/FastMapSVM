@@ -1,16 +1,16 @@
 import h5py
 import itertools
+import marshal
 import multiprocessing as mp
 import numpy as np
 import pandas as pd
 import pathlib
+import pickle
 import scipy.signal
 import sklearn.model_selection
 import sklearn.svm
-
-
-_reduce = lambda c: np.mean(c, axis=0)
-
+import tqdm.notebook as tqdm
+import types
 
 def _init_pdist(fastmap, _X1, _X2, _W1, _W2):
 
@@ -30,6 +30,8 @@ def _pdist(iobj, jobj):
     dist = self._distance(X1[iobj], X2[jobj])
 
     for i in range(self._ihyprpln):
+        if dist**2 < (W1[iobj, i] - W2[jobj, i])**2:
+            return (0)
         dist = np.sqrt(dist**2 - (W1[iobj, i] - W2[jobj, i])**2)
 
     return (dist)
@@ -49,11 +51,16 @@ def correlate(a, b, mode="valid"):
     
     c = scipy.signal.correlate(b, a, mode=mode)
     
-    if mode == "valid":
-        norm = n * np.std(a) * b.rolling(n).std().dropna().values
-    elif mode == "same":
-        norm = n * np.std(a) * b.rolling(n, min_periods=0, center=True).std().values
-    c /= norm
+    # if mode == "valid":
+    #     norm = n * np.std(a) * b.rolling(n).std().dropna().values
+    # elif mode == "same":
+    #     norm = n * np.std(a) * b.rolling(n, min_periods=0, center=True).std().values
+        
+    norm = n * np.std(a) * np.std(b)
+    if norm == 0:
+        c[:] = 0
+    else:
+        c /= norm
     
     return (c)
 
@@ -62,7 +69,7 @@ def distance(
     obj_a, 
     obj_b, 
     mode="valid", 
-    reduce=_reduce, 
+    # reduce=_reduce, 
     force_triangle_ineq=False
 ):
     """
@@ -86,7 +93,7 @@ def distance(
         return (dist)
 
 
-def ndcorrelate(a, b, mode="valid", reduce=_reduce):
+def ndcorrelate(a, b, mode="valid"):
 
     assert a.ndim == b.ndim, "a and b must have the same number of dimensions"
     
@@ -112,17 +119,19 @@ def ndcorrelate(a, b, mode="valid", reduce=_reduce):
     for i in range(n):
         c[i] = correlate(a[i], b[i], mode=mode)
     
-    return (reduce(c))
+    return (c)
 
 
 class FastMapSVM(object):
-    
+
+
     def __init__(self, distance, ndim, model_path):
         self._distance = distance
         self._ihyprpln = 0
         self._ndim = ndim
         self._init_hdf5(pathlib.Path(model_path))
-    
+
+
     @property
     def hdf5(self):
         """
@@ -224,21 +233,37 @@ class FastMapSVM(object):
         else:
             raise (AttributeError("Attribute already initialized."))
 
-    
-    def _choose_pivots(self):
+
+    def _choose_pivots(self, nproc=None):
         """
         A heuristic algorithm to choose distant pivot objects adapted
         from Faloutsos and Lin (1995).
         """
         
-        jobj = np.random.choice(np.argwhere(self.y[:] == 1).flatten())
+        forbidden = self.pivot_ids[:self._ihyprpln].flatten()
         
-        while jobj in self.pivot_ids[:self._ihyprpln].flatten():
-            jobj = np.random.choice(np.argwhere(self.y[:] == 1).flatten())
+        while True:
+            _jobj = np.random.choice(np.argwhere(self.y[:] == 1).flatten())
+            if _jobj not in forbidden:
+                break
+        
+        iobj, jobj = None, None
+        while True:
+            furthest = self.furthest(_jobj, label=0, nproc=nproc)
+            for _iobj in furthest:
+                if _iobj not in forbidden:
+                    break
 
-        iobj = self.furthest(jobj, label=0)
-        jobj = self.furthest(iobj, label=1)
-        
+            furthest = self.furthest(_iobj, label=1, nproc=nproc)        
+            for _jobj in furthest:
+                if _jobj not in forbidden:
+                    break
+            
+            if _iobj == iobj and _jobj == jobj:
+                break
+            else:
+                iobj, jobj = _iobj, _jobj
+
         return (iobj, jobj)
     
 
@@ -253,8 +278,11 @@ class FastMapSVM(object):
             exists; as read/write otherwise.
         """
         
-        self._hdf5 = h5py.File(path, mode="w")
-            
+        self._hdf5 = h5py.File(path, mode="a")
+        code = np.void(marshal.dumps(self._distance.__code__))
+        self._hdf5.attrs["distance"] = code
+        self._hdf5.attrs["ndim"] = self.ndim
+
         return (True)
     
 
@@ -286,6 +314,9 @@ class FastMapSVM(object):
         dist = self._distance(X1[iobj], X2[jobj])
                     
         for i in range(self._ihyprpln):
+            if dist**2 < (W1[iobj, i] - W2[jobj, i])**2:
+                return (0)
+
             dist = np.sqrt(dist**2 - (W1[iobj, i] - W2[jobj, i])**2)
 
         return (dist)
@@ -317,25 +348,31 @@ class FastMapSVM(object):
         return (W)
 
 
-    def embed_database(self):
+    def embed_database(self, nproc=None):
         """
         Compute and store the image of every object in the database.
         """
         
         n = self.X.shape[0]
         
-        for self._ihyprpln in range(self.ndim):
+        for self._ihyprpln in tqdm.tqdm(range(self.ndim)):
 
-            ipiv, jpiv = self._choose_pivots()
+            ipiv, jpiv = self._choose_pivots(nproc=nproc)
             self.pivot_ids[self._ihyprpln] = [ipiv, jpiv]
             self.X_piv[self._ihyprpln, 0] = self.X[ipiv]
             self.X_piv[self._ihyprpln, 1] = self.X[jpiv]
             d_ij = self.distance(ipiv, jpiv)
             
-            d  = np.square(self.pdist(np.arange(n), ipiv))
-            d -= np.square(self.pdist(np.arange(n), jpiv))
+            # if d_ij == 0:
+            #     print(ipiv, jpiv)
+            
+            d  = np.square(self.pdist(np.arange(n), ipiv, nproc=nproc))
+            d -= np.square(self.pdist(np.arange(n), jpiv, nproc=nproc))
             d += d_ij ** 2
             d /= (2 * d_ij)
+            ####
+            d[d < 0] = 0
+            ####
             self.W[:, self._ihyprpln] = d
         
         for idim, (ipiv, jpiv) in enumerate(self.pivot_ids):
@@ -349,33 +386,54 @@ class FastMapSVM(object):
         X, y,
         kernel=("linear", "rbf"), 
         C=[2**n for n in range(-4, 4)],
-        gamma=[2**n for n in range(-4, 4)]
+        gamma=[2**n for n in range(-4, 4)],
+        nproc=None
     ):
         self.X = X
         self.y = y
-        self.embed_database()
+        self.embed_database(nproc=nproc)
         
         params = dict(kernel=kernel, C=C, gamma=gamma)
-        clf = sklearn.model_selection.GridSearchCV(sklearn.svm.SVC(), params)
+        svc = sklearn.svm.SVC()
+        clf = sklearn.model_selection.GridSearchCV(svc, params, n_jobs=nproc)
         clf.fit(self.W[:], self.y[:])
         self._clf = clf.best_estimator_
+        
+        self.hdf5.create_dataset("clf", data=np.void(pickle.dumps(self._clf)))
 
     
-    def furthest(self, iobj, label=None):
+    def furthest(self, iobj, label=None, nproc=None):
         """
         Return the index of the object furthest from object with index 
         *iobj*.
         """
-
         if label is None:
             idxs = np.arange(self.y.shape[0])
         else:
             idxs = np.argwhere(self.y[:] == label).flatten()
         
-        return (idxs[np.argmax(self.pdist(iobj, idxs))])
+        return (idxs[np.argsort(self.pdist(iobj, idxs, nproc=nproc))[-1::-1]])
+    
+
+    def load(path):
+        self = FastMapSVM.__new__(FastMapSVM)
+        self._hdf5 = h5py.File(path, mode="a")
+        self._distance = distance
+        self._ihyprpln = 0
+        self._ndim = self.hdf5.attrs["ndim"]
+        
+        self._distance = types.FunctionType(
+            marshal.loads(self.hdf5.attrs["distance"]), 
+            globals(), 
+            "distance"
+        )
+
+        self._clf = pickle.loads(np.void(self.hdf5["clf"]))
+        
+        return (self)
 
 
-    def pdist(self, iobj, jobj, X1=None, X2=None, W1=None, W2=None):
+    def pdist(self, iobj, jobj, X1=None, X2=None, W1=None, W2=None, nproc=None):
 
         iobj = np.atleast_1d(iobj)
         jobj = np.atleast_1d(jobj)
@@ -389,7 +447,7 @@ class FastMapSVM(object):
         if W2 is None:
             W2 = self.W
 
-        with mp.Pool(initializer=_init_pdist, initargs=(self, X1, X2, W1, W2)) as pool:
+        with mp.Pool(processes=nproc, initializer=_init_pdist, initargs=(self, X1, X2, W1, W2)) as pool:
             iterator = itertools.product(iobj, jobj)
                       
             return (np.array(pool.starmap(_pdist, iterator)))
