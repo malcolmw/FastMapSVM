@@ -263,6 +263,9 @@ class FastMapSVM(object):
                 break
             else:
                 iobj, jobj = _iobj, _jobj
+                
+        dist = self._distance(self.X[iobj], self.X[jobj])
+        print(f"Furtherst distance: {dist:.6f}")
 
         return (iobj, jobj)
     
@@ -322,7 +325,7 @@ class FastMapSVM(object):
         return (dist)
 
 
-    def embed(self, X):
+    def embed(self, X, nproc=None):
         """
         Return the embedding (images) of the given objects, `X`.
         """
@@ -337,8 +340,8 @@ class FastMapSVM(object):
             Wpiv = self.W_piv[self._ihyprpln]
             
             d_ij = self.distance(0, 1, X1=Xpiv, X2=Xpiv, W1=Wpiv, W2=Wpiv)
-            d_ik = self.pdist(0, kobj, X1=Xpiv, X2=X, W1=Wpiv, W2=W)
-            d_jk = self.pdist(1, kobj, X1=Xpiv, X2=X, W1=Wpiv, W2=W)
+            d_ik = self.pdist(0, kobj, X1=Xpiv, X2=X, W1=Wpiv, W2=W, nproc=nproc)
+            d_jk = self.pdist(1, kobj, X1=Xpiv, X2=X, W1=Wpiv, W2=W, nproc=nproc)
             
             W[:, self._ihyprpln]  = np.square(d_ik)
             W[:, self._ihyprpln] += np.square(d_ij)
@@ -394,7 +397,7 @@ class FastMapSVM(object):
         self.embed_database(nproc=nproc)
         
         params = dict(kernel=kernel, C=C, gamma=gamma)
-        svc = sklearn.svm.SVC()
+        svc = sklearn.svm.SVC(probability=True)
         clf = sklearn.model_selection.GridSearchCV(svc, params, n_jobs=nproc)
         clf.fit(self.W[:], self.y[:])
         self._clf = clf.best_estimator_
@@ -453,11 +456,21 @@ class FastMapSVM(object):
             return (np.array(pool.starmap(_pdist, iterator)))
 
 
-    def predict(self, X, return_image=False):
+    def predict(self, X, return_image=False, nproc=None):
         
-        W = self.embed(X)
+        W = self.embed(X, nproc=nproc)
         
         if return_image is True:
             return (W, self._clf.predict(W))
         else:
             return (self._clf.predict(W))
+
+
+    def predict_proba(self, X, return_image=False, nproc=None):
+        
+        W = self.embed(X, nproc=nproc)
+        
+        if return_image is True:
+            return (W, self._clf.predict_proba(W))
+        else:
+            return (self._clf.predict_proba(W))
