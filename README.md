@@ -15,8 +15,8 @@ import h5py
 import numpy as np
 import sklearn.metrics
 
-model_path = "../data/ridgecrest_model.hdf5" # Model output path.
-data_path  = "../data/ridgecrest.hdf5"       # Test/training data path.
+model_path = "data/ridgecrest_model.hdf5" # Model output path.
+data_path  = "data/ridgecrest.hdf5"       # Test/training data path.
 
 # Define a distance function on pairs of objects.
 def correlation_distance(a, b):
