@@ -58,7 +58,7 @@ sklearn.metrics.ConfusionMatrixDisplay.from_predictions(
 ![Confusion Matrix](resources/confusion_matrix.png)
 
 # Limitations
-There is a known limitation of this code on Mac OS X. The way that HDF5 files are handled by the `h5py` backend on Mac OS X breaks the multiprocessing paradigm implemented. The workaround is to pass `numpy` arrays to the `FastMapSVM.fit()`, `FastMapSVM.predict()`, and `FastMapSVM.predict_proba()` methods.
+There is a known limitation of this code on Mac OS X. The way that HDF5 files are handled by the `h5py` backend on Mac OS X breaks the multiprocessing paradigm implemented. The workaround is to pass `numpy` arrays to the `FastMapSVM.fit()`, `FastMapSVM.predict()`, and `FastMapSVM.predict_proba()` methods instead of passing handles to HDF5 Datasets (as is shown in the quickstart tutorial above).
 
 # References
 White, M. C. A., Sharma, K., Li, A., Kumar, T. K. S., & Nakata, N. (2022). FastMapSVM: Classifying Complex Objects Using the FastMap Algorithm and Support-Vector Machines. ArXiv. http://arxiv.org/abs/2204.05112
