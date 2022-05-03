@@ -1,5 +1,7 @@
 # FastMapSVM: An Algorithm for Classifying Complex Objects
-This is the official repository for the FastMapSVM algorithm (White et al., in review). The pre-print is available on arXiv: https://arxiv.org/abs/2204.05112.
+This is the official repository for the FastMapSVM algorithm associated with White et al. (in review). The pre-print is available on arXiv: https://arxiv.org/abs/2204.05112.
+
+**Disclaimer**: The FastMapSVM concept was first presented in an underappreciated paper by Ban et al., (2009). We independently re-invented the framework and subsequently discovered the work of Ban et al. We are now in the process of revising our manuscript to omit any unmerited claims of novelty.
 
 ![Perspicuous Visualization](resources/readme_figure.png)
 
@@ -61,4 +63,6 @@ sklearn.metrics.ConfusionMatrixDisplay.from_predictions(
 There is a known limitation of this code on Mac OS X. The way that HDF5 files are handled by the `h5py` backend on Mac OS X breaks the multiprocessing paradigm implemented. The workaround is to pass `numpy` arrays to the `FastMapSVM.fit()`, `FastMapSVM.predict()`, and `FastMapSVM.predict_proba()` methods instead of passing handles to HDF5 Datasets (as is shown in the quickstart tutorial above).
 
 # References
-White, M. C. A., Sharma, K., Li, A., Kumar, T. K. S., & Nakata, N. (2022). FastMapSVM: Classifying Complex Objects Using the FastMap Algorithm and Support-Vector Machines. ArXiv. http://arxiv.org/abs/2204.05112
+White, M. C. A., Sharma, K., Li, A., Kumar, T. K. S., & Nakata, N. (2022). FastMapSVM: Classifying Complex Objects Using the FastMap Algorithm and Support-Vector Machines. _ArXiv_. http://arxiv.org/abs/2204.05112
+
+Ban, T., Kadobayashi, Y., & Abe, S. (2009) Sparse kernel feature analysis using FastMap and its variants. _2009 International Joint Conference on Neural Networks_, pp. 256-263, doi: 10.1109/IJCNN.2009.5178835.
