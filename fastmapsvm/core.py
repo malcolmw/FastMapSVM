@@ -12,27 +12,23 @@ import sklearn.svm
 import tqdm.notebook as tqdm
 import types
 
-def _init_pdist(fastmap, _X1, _X2, _W1, _W2):
+def _init_pdist(_distance, _ihyprpln):
 
-    global self, X1, X2, W1, W2
-
-    self = fastmap
-    X1 = _X1
-    X2 = _X2
-    W1 = _W1
-    W2 = _W2
+    global distance, ihyprpln
+    
+    distance = _distance
+    ihyprpln = _ihyprpln
 
 
-def _pdist(iobj, jobj):
-
-    global self, X1, X2, W1, W2
-
-    dist = self._distance(X1[iobj], X2[jobj])
-
-    for i in range(self._ihyprpln):
-        if dist**2 < (W1[iobj, i] - W2[jobj, i])**2:
+def _pdist(Xi, Xj, Wi, Wj):
+    
+    global distance, ihyprpln
+    
+    dist = distance(Xi, Xj)
+    for i in range(ihyprpln):
+        if dist**2 < (Wi[i] - Wj[i])**2:
             return (0)
-        dist = np.sqrt(dist**2 - (W1[iobj, i] - W2[jobj, i])**2)
+        dist = np.sqrt(dist**2 - (Wi[i] - Wj[i])**2)
 
     return (dist)
 
@@ -360,11 +356,14 @@ class FastMapSVM(object):
             W1 = self.W
         if W2 is None:
             W2 = self.W
-
-        with mp.Pool(processes=nproc, initializer=_init_pdist, initargs=(self, X1, X2, W1, W2)) as pool:
-            iterator = itertools.product(iobj, jobj)
-
-            return (np.array(pool.starmap(_pdist, iterator)))
+            
+        initargs= (self._distance, self._ihyprpln)
+        with mp.Pool(processes=nproc, initializer=_init_pdist, initargs=initargs) as pool:
+            generator = (
+                (X1[iobj], X2[jobj], W1[iobj], W2[jobj])
+                for iobj, jobj in itertools.product(iobj, jobj)
+            )
+            return (np.array(pool.starmap(_pdist, generator)))
 
 
     def predict(self, X, return_image=False, nproc=None):
