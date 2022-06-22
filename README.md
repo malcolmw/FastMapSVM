@@ -58,6 +58,8 @@ sklearn.metrics.ConfusionMatrixDisplay.from_predictions(
 ![Confusion Matrix](resources/confusion_matrix.png)
 
 # References
-White, M. C. A., Sharma, K., Li, A., Kumar, T. K. S., & Nakata, N. (2022). FastMapSVM: Classifying Complex Objects Using the FastMap Algorithm and Support-Vector Machines. _ArXiv_. http://arxiv.org/abs/2204.05112
-
 Ban, T., Kadobayashi, Y., & Abe, S. (2009) Sparse kernel feature analysis using FastMap and its variants. _2009 International Joint Conference on Neural Networks_, pp. 256-263, doi: 10.1109/IJCNN.2009.5178835.
+
+Faloutsos, C., & Lin, K.-I. (1995). FastMap: A Fast Algorithm for Indexing, Data-Mining and Visualization of Traditional and Multimedia Datasets. _ACM SIGMOD Record, 24_(2), 163–174. https://doi.org/10.1145/568271.223812
+
+White, M. C. A., Sharma, K., Li, A., Kumar, T. K. S., & Nakata, N. (2022). FastMapSVM: Classifying Complex Objects Using the FastMap Algorithm and Support-Vector Machines. _ArXiv_. http://arxiv.org/abs/2204.05112
