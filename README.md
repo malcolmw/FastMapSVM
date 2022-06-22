@@ -1,8 +1,6 @@
 # FastMapSVM: An Algorithm for Classifying Complex Objects
 This is the official repository for the FastMapSVM algorithm associated with **"FastMapSVM: Classifying Complex Objects Using the FastMap algorithm and Support-Vector Machines"** (White et al., in review). The pre-print is available on arXiv: https://arxiv.org/abs/2204.05112.
 
-**Disclaimer**: The FastMapSVM concept was first presented in an underappreciated paper by Ban et al., (2009). We independently re-invented the framework and subsequently discovered the work of Ban et al. We are now in the process of revising our manuscript to omit any unmerited claims of novelty.
-
 ![Perspicuous Visualization](resources/readme_figure.png)
 
 # Installation
