@@ -3,38 +3,39 @@ import itertools
 import marshal
 import multiprocessing as mp
 import numpy as np
-import pandas as pd
 import pathlib
 import pickle
-import scipy.signal
 import sklearn.model_selection
 import sklearn.svm
-import tqdm.notebook as tqdm
-import types
+# import tqdm.notebook as tqdm
+import tqdm
 
-def _init_pdist(_distance, _ihyprpln):
+def _init_pdist(fastmap, _X1, _X2, _W1, _W2):
 
-    global distance, ihyprpln
-    
-    distance = _distance
-    ihyprpln = _ihyprpln
+    global self, X1, X2, W1, W2
+
+    self = fastmap
+    X1 = _X1
+    X2 = _X2
+    W1 = _W1
+    W2 = _W2
 
 
-def _pdist(Xi, Xj, Wi, Wj):
-    
-    global distance, ihyprpln
-    
-    dist = distance(Xi, Xj)
-    for i in range(ihyprpln):
-        if dist**2 < (Wi[i] - Wj[i])**2:
+def _pdist(iobj, jobj):
+
+    global self, X1, X2, W1, W2
+
+    dist = self._distance(X1[iobj], X2[jobj])
+
+    for i in range(self._ihyprpln):
+        if dist**2 < (W1[iobj, i] - W2[jobj, i])**2:
             return (0)
-        dist = np.sqrt(dist**2 - (Wi[i] - Wj[i])**2)
+        dist = np.sqrt(dist**2 - (W1[iobj, i] - W2[jobj, i])**2)
 
     return (dist)
 
 
-class FastMapSVM(object):
-
+class FastMapBase:
 
     def __init__(self, distance, ndim, model_path):
         self._distance = distance
@@ -143,40 +144,37 @@ class FastMapSVM(object):
             self.hdf5.create_dataset("y", data=value)
         else:
             raise (AttributeError("Attribute already initialized."))
-
-
+            
+    
     def _choose_pivots(self, nproc=None):
         """
-        A heuristic algorithm to choose distant pivot objects adapted
+        A heuristic algorithm to choose distant pivot objects
         from Faloutsos and Lin (1995).
         """
-
+    
         forbidden = self.pivot_ids[:self._ihyprpln].flatten()
-
+    
         while True:
-            _jobj = np.random.choice(np.argwhere(self.y[:] == 1).flatten())
+            _jobj = np.random.choice(np.arange(self.X.shape[0]))
             if _jobj not in forbidden:
                 break
-
+    
         iobj, jobj = None, None
         while True:
-            furthest = self.furthest(_jobj, label=0, nproc=nproc)
+            furthest = self.furthest(_jobj, nproc=nproc)
             for _iobj in furthest:
                 if _iobj not in forbidden:
                     break
-
-            furthest = self.furthest(_iobj, label=1, nproc=nproc)
+    
+            furthest = self.furthest(_iobj, nproc=nproc)
             for _jobj in furthest:
                 if _jobj not in forbidden:
                     break
-
             if _iobj == iobj and _jobj == jobj:
                 break
             else:
                 iobj, jobj = _iobj, _jobj
-
-        dist = self._distance(self.X[iobj], self.X[jobj])
-
+    
         return (iobj, jobj)
 
 
@@ -291,6 +289,95 @@ class FastMapSVM(object):
 
         return (True)
 
+
+    def furthest(self, iobj, label=None, nproc=None):
+        """
+        Return the index of the object furthest from object with index
+        *iobj*.
+        """
+        if label is None:
+            idxs = np.arange(self.X.shape[0])
+        else:
+            idxs = np.argwhere(self.y[:] == label).flatten()
+
+        return (idxs[np.argsort(self.pdist(iobj, idxs, nproc=nproc))[-1::-1]])
+
+
+    # def load(path):
+    #     self = FastMapSVM.__new__(FastMapSVM)
+    #     self._hdf5 = h5py.File(path, mode="a")
+    #     self._distance = distance
+    #     self._ihyprpln = 0
+    #     self._ndim = self.hdf5.attrs["ndim"]
+
+    #     self._distance = types.FunctionType(
+    #         marshal.loads(self.hdf5.attrs["distance"]),
+    #         globals(),
+    #         "distance"
+    #     )
+
+    #     self._clf = pickle.loads(np.void(self.hdf5["clf"]))
+
+    #     return (self)
+
+
+    def pdist(self, iobj, jobj, X1=None, X2=None, W1=None, W2=None, nproc=None):
+
+        iobj = np.atleast_1d(iobj)
+        jobj = np.atleast_1d(jobj)
+
+        if X1 is None:
+            X1 = self.X
+        if X2 is None:
+            X2 = self.X
+        if W1 is None:
+            W1 = self.W
+        if W2 is None:
+            W2 = self.W
+
+        with mp.Pool(
+                processes=nproc, 
+                initializer=_init_pdist, 
+                initargs=(self, X1, X2, W1, W2)
+        ) as pool:
+            iterator = itertools.product(iobj, jobj)
+
+            return (np.array(pool.starmap(_pdist, iterator)))
+
+
+class FastMapSVM(FastMapBase):
+    def _choose_pivots(self, nproc=None):
+        """
+        A supervised adpatation of the heuristic algorithm to choose
+        distant pivot objects from Faloutsos and Lin (1995).
+        """
+
+        forbidden = self.pivot_ids[:self._ihyprpln].flatten()
+
+        while True:
+            _jobj = np.random.choice(np.argwhere(self.y[:] == 1).flatten())
+            if _jobj not in forbidden:
+                break
+
+        iobj, jobj = None, None
+        while True:
+            furthest = self.furthest(_jobj, label=0, nproc=nproc)
+            for _iobj in furthest:
+                if _iobj not in forbidden:
+                    break
+
+            furthest = self.furthest(_iobj, label=1, nproc=nproc)
+            for _jobj in furthest:
+                if _jobj not in forbidden:
+                    break
+
+            if _iobj == iobj and _jobj == jobj:
+                break
+            else:
+                iobj, jobj = _iobj, _jobj
+
+        return (iobj, jobj)
+    
     def fit(
         self,
         X, y,
@@ -310,62 +397,7 @@ class FastMapSVM(object):
         self._clf = clf.best_estimator_
 
         self.hdf5.create_dataset("clf", data=np.void(pickle.dumps(self._clf)))
-
-
-    def furthest(self, iobj, label=None, nproc=None):
-        """
-        Return the index of the object furthest from object with index
-        *iobj*.
-        """
-        if label is None:
-            idxs = np.arange(self.y.shape[0])
-        else:
-            idxs = np.argwhere(self.y[:] == label).flatten()
-
-        return (idxs[np.argsort(self.pdist(iobj, idxs, nproc=nproc))[-1::-1]])
-
-
-    def load(path):
-        self = FastMapSVM.__new__(FastMapSVM)
-        self._hdf5 = h5py.File(path, mode="a")
-        self._distance = distance
-        self._ihyprpln = 0
-        self._ndim = self.hdf5.attrs["ndim"]
-
-        self._distance = types.FunctionType(
-            marshal.loads(self.hdf5.attrs["distance"]),
-            globals(),
-            "distance"
-        )
-
-        self._clf = pickle.loads(np.void(self.hdf5["clf"]))
-
-        return (self)
-
-
-    def pdist(self, iobj, jobj, X1=None, X2=None, W1=None, W2=None, nproc=None):
-
-        iobj = np.atleast_1d(iobj)
-        jobj = np.atleast_1d(jobj)
-
-        if X1 is None:
-            X1 = self.X
-        if X2 is None:
-            X2 = self.X
-        if W1 is None:
-            W1 = self.W
-        if W2 is None:
-            W2 = self.W
-            
-        initargs= (self._distance, self._ihyprpln)
-        with mp.Pool(processes=nproc, initializer=_init_pdist, initargs=initargs) as pool:
-            generator = (
-                (X1[iobj], X2[jobj], W1[iobj], W2[jobj])
-                for iobj, jobj in itertools.product(iobj, jobj)
-            )
-            return (np.array(pool.starmap(_pdist, generator)))
-
-
+        
     def predict(self, X, return_image=False, nproc=None):
 
         W = self.embed(X, nproc=nproc)

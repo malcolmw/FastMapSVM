@@ -3,8 +3,8 @@ import setuptools
 def configure():
 # Initialize the setup kwargs
     kwargs = {
-            "name": "fastmapsvm",
-            "version": "0.1b0",
+            "name": "fastmap",
+            "version": "0.2a0",
             "author": "Malcolm White",
             "author_email": "malcolmw@mit.edu",
             "maintainer": "Malcolm White",
@@ -14,7 +14,7 @@ def configure():
             "download_url": "https://github.com/malcolmw/FastMapSVM.git",
             "platforms": ["linux"],
             "requires": ["h5py", "numpy", "pandas", "scipy", "sklearn", "tqdm"],
-            "packages": ["fastmapsvm"]
+            "packages": ["fastmap"]
             }
     return(kwargs)
 
