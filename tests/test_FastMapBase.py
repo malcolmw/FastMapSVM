@@ -10,17 +10,15 @@ import pathlib
 import tempfile
 import unittest
 
+import fastmap as fm
 import h5py
 import numpy as np
+import sklearn.metrics
+
 
 class TestFastMapBase(unittest.TestCase):
-    
-    def test_import(self):
-        import fastmap as fm
 
     def test_embed(self):
-        import fastmap as fm
-        
         def correlation_distance(a, b):
             xcorr = fm.distance.ndcorrelate(a, b, mode="same")
             distance = 1 - np.max(np.abs(np.mean(xcorr, axis=0)))
@@ -42,9 +40,7 @@ class TestFastMapBase(unittest.TestCase):
             
             
 class TestFastMapSVM(unittest.TestCase):
-    def test_fit(self):
-        import fastmap as fm
-        import sklearn.metrics
+    def _test_fit(self):
         
         def correlation_distance(a, b):
             xcorr = fm.distance.ndcorrelate(a, b, mode="same")
