@@ -303,13 +303,12 @@ class FastMapBase:
         return (idxs[np.argsort(self.pdist(iobj, idxs, nproc=nproc))[-1::-1]])
 
 
-    # def load(path):
-    #     self = FastMapSVM.__new__(FastMapSVM)
-    #     self._hdf5 = h5py.File(path, mode="a")
+    def load(path):
+        self = FastMapBase.__new__(FastMapBase)
+        self._hdf5 = h5py.File(path, mode="a")
     #     self._distance = distance
-    #     self._ihyprpln = 0
-    #     self._ndim = self.hdf5.attrs["ndim"]
-
+        self._ihyprpln = 0
+        self._ndim = self.hdf5.attrs["ndim"]    
     #     self._distance = types.FunctionType(
     #         marshal.loads(self.hdf5.attrs["distance"]),
     #         globals(),
@@ -318,7 +317,7 @@ class FastMapBase:
 
     #     self._clf = pickle.loads(np.void(self.hdf5["clf"]))
 
-    #     return (self)
+        return self
 
 
     def pdist(self, iobj, jobj, X1=None, X2=None, W1=None, W2=None, nproc=None):
