@@ -1,6 +1,5 @@
 import h5py
 import itertools
-import marshal
 import multiprocessing as mp
 import numpy as np
 import pandas as pd
@@ -193,8 +192,6 @@ class FastMapSVM(object):
         """
 
         self._hdf5 = h5py.File(path, mode="a")
-        code = np.void(marshal.dumps(self._distance.__code__))
-        self._hdf5.attrs["distance"] = code
         self._hdf5.attrs["ndim"] = self.ndim
 
         return (True)
@@ -326,18 +323,12 @@ class FastMapSVM(object):
         return (idxs[np.argsort(self.pdist(iobj, idxs, nproc=nproc))[-1::-1]])
 
 
-    def load(path):
+    def load(path, distance):
         self = FastMapSVM.__new__(FastMapSVM)
         self._hdf5 = h5py.File(path, mode="a")
         self._distance = distance
         self._ihyprpln = 0
         self._ndim = self.hdf5.attrs["ndim"]
-
-        self._distance = types.FunctionType(
-            marshal.loads(self.hdf5.attrs["distance"]),
-            globals(),
-            "distance"
-        )
 
         self._clf = pickle.loads(np.void(self.hdf5["clf"]))
 
