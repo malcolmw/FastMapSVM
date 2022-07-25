@@ -15,15 +15,16 @@ import types
 def _init_pdist(_distance, _ihyprpln):
 
     global distance, ihyprpln
-    
+
     distance = _distance
     ihyprpln = _ihyprpln
 
 
-def _pdist(Xi, Xj, Wi, Wj):
-    
+def _pdist(args):
+
     global distance, ihyprpln
-    
+    Xi, Xj, Wi, Wj = args
+
     dist = distance(Xi, Xj)
     for i in range(ihyprpln):
         if dist**2 < (Wi[i] - Wj[i])**2:
@@ -356,14 +357,14 @@ class FastMapSVM(object):
             W1 = self.W
         if W2 is None:
             W2 = self.W
-            
+
         initargs= (self._distance, self._ihyprpln)
         with mp.Pool(processes=nproc, initializer=_init_pdist, initargs=initargs) as pool:
             generator = (
                 (X1[iobj], X2[jobj], W1[iobj], W2[jobj])
                 for iobj, jobj in itertools.product(iobj, jobj)
             )
-            return (np.array(pool.starmap(_pdist, generator)))
+            return np.array(list(pool.imap(_pdist, generator)))
 
 
     def predict(self, X, return_image=False, nproc=None):
