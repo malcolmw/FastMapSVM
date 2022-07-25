@@ -8,7 +8,7 @@ import pickle
 import scipy.signal
 import sklearn.model_selection
 import sklearn.svm
-import tqdm.notebook as tqdm
+import tqdm as tqdm
 import types
 
 def _init_pdist(_distance, _ihyprpln):
