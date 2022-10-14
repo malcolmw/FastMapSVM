@@ -23,7 +23,7 @@ def correlate(a, b, mode="valid"):
 
     norm = n * np.std(a) * np.std(b)
     if norm == 0:
-        c[:] = 0
+        c[:] = np.nan
     else:
         c /= norm
 
