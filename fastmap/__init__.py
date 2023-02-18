@@ -1,1 +1,1 @@
-from .core import FastMap
+from .core import FastMapABC

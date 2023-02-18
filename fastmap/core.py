@@ -12,23 +12,24 @@ print('Importing fastmap.core')
 # It can be either numpy or cupy. By default, it is numpy.
 global _xp_
 global get_array
-global get_array_module
 
-import h5py
 import numpy as np
-import pathlib
 import tqdm
 
 _xp_ = np
 get_array = lambda array: array
-get_array_module = lambda array: np
 
 DEFAULT_BATCH_SIZE = 1024
 EPSILON = 1e-9
 
-class FastMap:
+class FastMapABC:
 
-    def __init__(self, distance_func, n_dim, model_path, overwrite=False):
+    def __init__(
+        self, 
+        distance_func, 
+        n_dim,
+        batch_size=DEFAULT_BATCH_SIZE
+    ):
         '''
         Implements the FastMap algorithm.
 
@@ -52,27 +53,46 @@ class FastMap:
         self._distance_func = distance_func
         self._ihyprpln = 0
         self._n_dim = n_dim
-        self._init_hdf5(model_path, overwrite=overwrite)
+        self._batch_size = batch_size
         
         
-    def __enter__(self):
-        return self
+    # def __getstate__(self):
+    #     import marshal
+    #     state = self.__dict__.copy()
+    #     state['_distance_func'] = marshal.dumps(self._distance_func.__code__)
+    #     return state
     
-    
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
+    # def __setstate__(self, state):
+    #     import marshal
+    #     import types
+    #     for key in state:
+    #         if key != '_distance_func':
+    #             setattr(self, key, state[key])
+    #         else:
+    #             setattr(
+    #                 self, 
+    #                 key, 
+    #                 types.FunctionType(marshal.loads(state[key]), globals())
+    #             )
+                
         
         
     @property
-    def hdf5(self):
+    def batch_size(self):
         '''
         Returns
         -------
-        h5py.File
-            HDF5 model backend.
+        int
+            Batch size.
 
         '''
-        return self._hdf5
+        return self._batch_size
+    
+    @batch_size.setter
+    def batch_size(self, value):
+        if not isinstance(value, int):
+            raise TypeError('batch_size must be an int.')
+        self._batch_size = value
         
         
     @property
@@ -107,15 +127,14 @@ class FastMap:
             Indices of pivot objects.
 
         '''
-        if '/pivot_ids' not in self.hdf5:
-            self.hdf5.create_dataset(
-                '/pivot_ids',
+        if not hasattr(self, '_pivot_ids'):
+            self._pivot_ids = np.full(
                 (self.n_dim, 2),
-                np.uint16,
-                fillvalue=np.nan
+                np.nan,
+                dtype=np.uint16,
             )
+        return self._pivot_ids
 
-        return self.hdf5['/pivot_ids']
     
     @property
     def supervised(self):
@@ -130,35 +149,14 @@ class FastMap:
     
     
     @property
-    def W(self):
-        '''
-        Returns
-        -------
-        numpy.array
-            Images of embedded objects.
-
-        '''
-        if not hasattr(self, '_W'):
-            self._W = np.full(
-                (self.n_obj, self.n_dim), 
+    def W_piv(self):
+        if not hasattr(self, '_W_piv'):
+            self._W_piv = np.full(
+                (self.n_dim, 2, self.n_dim),
                 np.nan,
                 dtype=np.float32
             )
-
-        return self._W
-    
-    
-    @property
-    def W_piv(self):
-        if '/W_piv' not in self.hdf5:
-            self.hdf5.create_dataset(
-                '/W_piv',
-                (self.n_dim, 2, self.n_dim),
-                np.float32,
-                fillvalue=np.nan
-            )
-
-        return self.hdf5['/W_piv']
+        return self._W_piv
 
     
     @property
@@ -179,15 +177,13 @@ class FastMap:
         
     @property
     def X_piv(self):
-        if '/X_piv' not in self.hdf5:
-            self.hdf5.create_dataset(
-                '/X_piv',
+        if not hasattr(self, '_X_piv'):
+            self._X_piv = np.full(
                 (self.n_dim, 2, *self.X.shape[1:]),
-                self.X.dtype,
-                fillvalue=np.nan
+                np.nan,
+                dtype=self.X.dtype
             )
-
-        return self.hdf5['/X_piv']
+        return self._X_piv
         
         
     @property
@@ -260,45 +256,7 @@ class FastMap:
                 break
 
         return i_obj, j_obj
-        
-        
-    def _init_hdf5(self, path, overwrite=False):
-        '''
-        Initializes the HDF5 backend.
 
-        Parameters
-        ----------
-        path : str, pathlib.Path
-            Path to store model. Open as read-only if it already
-            exists; as read/write otherwise.
-        overwrite : bool, optional
-            Overwrite pre-existing model if one exists. The default is False.
-
-        Returns
-        -------
-        None.
-
-        '''
-        path = pathlib.Path(path)
-        if path.exists() and not overwrite:
-            raise OSError(
-                f'File already exists at {path}. Move this file first or '
-                 'specify overwrite=True.'
-            )
-        self._hdf5 = h5py.File(path, mode='w')
-        self._hdf5.attrs['n_dim'] = self.n_dim
-        
-        
-    def close(self):
-        '''
-        Close the HDF5 backend.
-
-        Returns
-        -------
-        None.
-
-        '''
-        self.hdf5.close()
         
         
     def cupy(self):
@@ -312,10 +270,8 @@ class FastMap:
         '''
         global _xp_
         global get_array
-        global get_array_module
         try:
             import cupy as _xp_
-            get_array_module = lambda array: _xp_.get_array_module(array)
             get_array = lambda array: array.get()
         except ModuleNotFoundError:
             print('CuPy module is not installed. Falling back to NumPy.')
@@ -329,8 +285,7 @@ class FastMap:
         X_1=None, 
         X_2=None, 
         W_1=None,
-        W_2=None,
-        batch_size=DEFAULT_BATCH_SIZE
+        W_2=None
     ):
         # """
         # Return the distance between objects at indices i_objs and kernel object at
@@ -361,10 +316,10 @@ class FastMap:
 
         dist = _xp_.concatenate([
             self._distance_func(
-                X_1[i_objs[i: i+batch_size]],
+                X_1[i_objs[i: i+self.batch_size]],
                 X_j
             )
-            for i in range(0, len(i_objs), batch_size)
+            for i in range(0, len(i_objs), self.batch_size)
         ])
 
         for i in range(self._ihyprpln):
@@ -396,15 +351,14 @@ class FastMap:
         return idxs[-1::-1]
 
 
-    def train(
+    def fit(
         self, 
         X, 
         y=None, 
         n_proc=None, 
-        batch_size=DEFAULT_BATCH_SIZE,
         show_progress=True
     ):
-        f'''
+        '''
         Train the FastMap embedding using the input X, y data.
 
         Parameters
@@ -417,9 +371,6 @@ class FastMap:
         n_proc : int, optional
             Number of processes to use if running multiprocessing mode.
             The default is None.
-        batch_size : int, optional
-            Batch size for batch processing. The default is 
-            {DEFAULT_BATCH_SIZE}.
         show_progress : bool, optional
             Show TQDM progress bar. The default is True.
 
@@ -430,6 +381,12 @@ class FastMap:
         '''
         self.X = X
         self.y = y
+        
+        self.W = np.full(
+            (self.n_obj, self.n_dim), 
+            np.nan,
+            dtype=np.float32
+        )
             
 
         for self._ihyprpln in tqdm.tqdm(range(self.n_dim)):
@@ -438,7 +395,7 @@ class FastMap:
             self.X_piv[self._ihyprpln, 0] = self.X[i_piv]
             self.X_piv[self._ihyprpln, 1] = self.X[j_piv]
             
-            d_ij = self.distance_matrix([i_piv], [j_piv], batch_size=batch_size)
+            d_ij = self.distance_matrix([i_piv], [j_piv])
             d  = _xp_.square(self.distance_matrix(np.arange(self.n_obj), i_piv))
             d -= _xp_.square(self.distance_matrix(np.arange(self.n_obj), j_piv))
             # d = d.get()
@@ -453,76 +410,53 @@ class FastMap:
         for i_dim, (i_piv, j_piv) in enumerate(self.pivot_ids):
             self.W_piv[i_dim, 0] = self.W[i_piv]
             self.W_piv[i_dim, 1] = self.W[j_piv]
+            
+        del(self._pivot_ids, self._X, self._y, self.W)
+        self._ihyprpln = 0
+        return self
 
-        
-def test():
 
-    data_path = '/home/malcolmw/git/FastMap/data/ridgecrest.hdf5'
-    with h5py.File(data_path, mode='r') as in_file:
-        X = in_file['/X/train'][:]
-        y = in_file['/y/train'][:]
-    
-    with FastMap(
-        correlation_distance, 
-        2,
-        '/home/malcolmw/scratch/fastmap.hdf5', 
-        overwrite=True
-    ) as fm:
-        fm.train(X)
-        W = fm.W
-    
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots()
-    ax.scatter(W[:, 0], W[:, 1])
-    # for i in range(2):
-    #     idxs = np.argwhere(y == i).flatten()
-    #     ax.scatter(
-    #         W[idxs, 0],
-    #         W[idxs, 1]
-    #     )
-    plt.show()
-    
-    
-def correlate(a, b, axis=-1):
-    xp = get_array_module(a)
-    
-    z = xp.fft.fftshift(
-        xp.fft.irfft(
-            xp.fft.rfft(a, axis=axis)
-            *
-            xp.conj(
-                xp.fft.rfft(b, axis=axis)
+    def transform(self, X):
+        """
+        Return the embedding (images) of the given objects, `X`.
+        """
+
+        n_obj = len(X)
+
+        W = _xp_.zeros((n_obj, self.n_dim), dtype=(_xp_).float32)
+        X_piv = _xp_.array(self.X_piv[:])
+        W_piv = _xp_.array(self.W_piv[:])
+        for i_batch, i_start in enumerate(tqdm.tqdm(range(
+                0,
+                n_obj,
+                self.batch_size
+        ))):
+            X_batch = _xp_.array(X[i_start: i_start+self.batch_size])
+            W_batch = W[i_start: i_start+self.batch_size]
+            d_ij0 = self._distance_func(X_piv[:, [0]], X_piv[:, [1]])
+            d_k0 = self._distance_func(
+                X_batch[:, _xp_.newaxis, _xp_.newaxis],
+                X_piv[_xp_.newaxis]
             )
-        ),
-        axes=axis
-    )
-    norm = xp.sqrt(
-        a.shape[-1] * xp.var(a, axis=axis)
-        *
-        b.shape[-1] * xp.var(b, axis=axis)
-    )
-    norm = norm[..., xp.newaxis]
+            for self._ihyprpln in range(self.n_dim):
+                dW_ij = _xp_.square(W_piv[self._ihyprpln, [0]] - W_piv[self._ihyprpln, 1])
+                dW_ik = _xp_.square(W_batch - W_piv[self._ihyprpln, 0])
+                dW_jk = _xp_.square(W_batch - W_piv[self._ihyprpln, 1])
+                d_ij = d_ij0[self._ihyprpln].copy()
+                d_ik = d_k0[:, self._ihyprpln, 0].copy()
+                d_jk = d_k0[:, self._ihyprpln, 1].copy()
+                for i in range(self._ihyprpln):
+                    d_ij = _xp_.sqrt(_xp_.clip(d_ij**2 - dW_ij[:, i], 0, _xp_.inf))
+                    d_ik = _xp_.sqrt(_xp_.clip(d_ik**2 - dW_ik[:, i], 0, _xp_.inf))
+                    d_jk = _xp_.sqrt(_xp_.clip(d_jk**2 - dW_jk[:, i], 0, _xp_.inf))
+                W_batch[:, self._ihyprpln]  = _xp_.square(d_ik)
+                W_batch[:, self._ihyprpln] += _xp_.square(d_ij)
+                W_batch[:, self._ihyprpln] -= _xp_.square(d_jk)
+                W_batch[:, self._ihyprpln] /= (d_ij * 2 + EPSILON)
+                W[i_start: i_start+self.batch_size, self._ihyprpln]  =  W_batch[:, self._ihyprpln]
 
-    return xp.nan_to_num(z / norm, neginf=0, posinf=0)
-
-def correlation_distance(a, b, axis=-1):
-    '''
-    Compute the pair-wise correlation distance matrix.
-    '''
-    xp = get_array_module(a)
-    return 1 - xp.clip(
-        xp.max(
-            xp.nanmean(
-                xp.abs(
-                    correlate(a, b, axis=axis)
-                ),
-                axis=-2
-            ),
-            axis=-1
-        ),
-        0, 1
-    )
+        return get_array(W)
 
         
 if __name__ == '__main__':
-    test()
+    pass
