@@ -9,6 +9,7 @@ This is the official repository for the FastMapSVM algorithm associated with **"
 ```
 
 # Tutorial
+This tutorial is available as a IPython notebook in `tutorials/tutorial.ipynb`.
 ```python
 import fastmap
 import h5py
