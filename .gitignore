@@ -1,4 +1,5 @@
 build
-fastmapsvm.egg-info
+*.egg-info
 *.ipynb_checkpoints
 .spyproject
+__pycache__
