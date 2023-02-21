@@ -19,7 +19,7 @@ import sklearn.pipeline
 import sklearn.preprocessing
 import sklearn.svm
 ```
-## 1. Introduction: $X \rightarrow$ FastMap $\rightarrow$ SVM $\rightarrow y$
+## 1. Introduction: $X \rightarrow$ FastMap $\rightarrow$ SVM $\rightarrow \widehat{y}$
 This tutorial demonstrates how to train and deploy the FastMapSVM classification model. As the name implies, FastMapSVM comprises two critical components: (1) the FastMap algorithm, and (2) an SVM classifier. The FastMap algorithm is implemented as a data transformation compatible with the `sklearn.pipeline.Pipeline` API. This allows the FastMapSVM model to be implemented as a simple `Pipeline` with optional intermediate transformations, such as data re-scaling.
 
 ## 2. Setup
