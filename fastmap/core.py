@@ -163,7 +163,7 @@ class FastMapABC:
 
     @X.setter
     def X(self, value):
-        self._X = _xp_.array(value)
+        self._X = value
         
         
     @property
@@ -332,8 +332,8 @@ class FastMapABC:
 
         dW = _xp_.square(_xp_.array(self.W[idxs] - self.W[[i_obj]]))
         dist = self._distance_func(
-            self.X[idxs],
-            self.X[[i_obj]]
+            _xp_.array(self.X[idxs]),
+            _xp_.array(self.X[[i_obj]])
         )
         for i in range(self._ihyprpln):
             dist = _xp_.sqrt(_xp_.clip(dist**2 - dW[:, i], 0, _xp_.inf))
