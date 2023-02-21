@@ -9,7 +9,7 @@ Created on Thu Feb 16 14:24:10 2023
 print('Importing fastmap.core')
 
 # _xp_ is the array module to use for batch distance calculations.
-# It can be either numpy or cupy. By default, it is numpy.
+# It can be either numpy or cupy. The default is numpy.
 global _xp_
 global get_array
 
@@ -28,6 +28,7 @@ class FastMapABC:
         self, 
         distance_func, 
         n_dim,
+        show_progress=False,
         batch_size=DEFAULT_BATCH_SIZE
     ):
         '''
@@ -42,8 +43,8 @@ class FastMapABC:
             The number of Euclidean dimensions.
         model_path : str, pathlib.Path
             Path to store model.
-        overwrite : bool, optional
-            Overwrite pre-existing model if one exists. The default is False.
+        show_progress: bool, optional
+            Show TQDM progress bar. The default is False.
 
         Returns
         -------
@@ -54,27 +55,7 @@ class FastMapABC:
         self._ihyprpln = 0
         self._n_dim = n_dim
         self._batch_size = batch_size
-        
-        
-    # def __getstate__(self):
-    #     import marshal
-    #     state = self.__dict__.copy()
-    #     state['_distance_func'] = marshal.dumps(self._distance_func.__code__)
-    #     return state
-    
-    # def __setstate__(self, state):
-    #     import marshal
-    #     import types
-    #     for key in state:
-    #         if key != '_distance_func':
-    #             setattr(self, key, state[key])
-    #         else:
-    #             setattr(
-    #                 self, 
-    #                 key, 
-    #                 types.FunctionType(marshal.loads(state[key]), globals())
-    #             )
-                
+        self.show_progress = show_progress
         
         
     @property
@@ -87,7 +68,7 @@ class FastMapABC:
 
         '''
         return self._batch_size
-    
+
     @batch_size.setter
     def batch_size(self, value):
         if not isinstance(value, int):
@@ -134,7 +115,17 @@ class FastMapABC:
                 dtype=np.uint16,
             )
         return self._pivot_ids
-
+    
+    
+    @property
+    def show_progress(self):
+        return self._show_progress
+    
+    @show_progress.setter
+    def show_progress(self, value):
+        if value not in (True, False):
+            raise(ValueError('show_progress must be either True or False.'))
+        self._show_progress = value
     
     @property
     def supervised(self):
@@ -355,8 +346,7 @@ class FastMapABC:
         self, 
         X, 
         y=None, 
-        n_proc=None, 
-        show_progress=True
+        n_proc=None
     ):
         '''
         Train the FastMap embedding using the input X, y data.
@@ -371,8 +361,6 @@ class FastMapABC:
         n_proc : int, optional
             Number of processes to use if running multiprocessing mode.
             The default is None.
-        show_progress : bool, optional
-            Show TQDM progress bar. The default is True.
 
         Returns
         -------
@@ -388,8 +376,8 @@ class FastMapABC:
             dtype=np.float32
         )
             
-
-        for self._ihyprpln in tqdm.tqdm(range(self.n_dim)):
+        wrapper = tqdm.tqdm if self.show_progress is True else lambda x: x
+        for self._ihyprpln in wrapper(range(self.n_dim)):
             i_piv, j_piv = self._choose_pivots(n_proc=n_proc)
             self.pivot_ids[self._ihyprpln] = [i_piv, j_piv]
             self.X_piv[self._ihyprpln, 0] = self.X[i_piv]
@@ -411,7 +399,10 @@ class FastMapABC:
             self.W_piv[i_dim, 0] = self.W[i_piv]
             self.W_piv[i_dim, 1] = self.W[j_piv]
             
-        del(self._pivot_ids, self._X, self._y, self.W)
+        del(self._pivot_ids, self._X, self.W)
+        if hasattr(self, '_y'):
+            del(self._y)
+
         self._ihyprpln = 0
         return self
 
@@ -426,7 +417,8 @@ class FastMapABC:
         W = _xp_.zeros((n_obj, self.n_dim), dtype=(_xp_).float32)
         X_piv = _xp_.array(self.X_piv[:])
         W_piv = _xp_.array(self.W_piv[:])
-        for i_batch, i_start in enumerate(tqdm.tqdm(range(
+        wrapper = tqdm.tqdm if self.show_progress is True else lambda x: x
+        for i_batch, i_start in enumerate(wrapper(range(
                 0,
                 n_obj,
                 self.batch_size
