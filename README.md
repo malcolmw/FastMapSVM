@@ -72,6 +72,7 @@ with h5py.File('data/ridgecrest.hdf5', mode='r') as in_file:
 
     X_test = in_file['/X/test'][:]
     y_test = in_file['/y/test'][:]
+```
 
 ### 3.2 Build a `sklearn.pipeline.Pipeline`
 The FastMapSVM model benefits from rescaling the extracted features before SVM classification.
