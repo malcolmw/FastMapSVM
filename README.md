@@ -79,7 +79,7 @@ The FastMapSVM model benefits from rescaling the extracted features before SVM c
 ```python
 n_dim = 2 # The number of dimensions for the Euclidean embedding.
 fastmapsvm = sklearn.pipeline.Pipeline([
-    ('fastmap', FastMap(correlation_distance, n_dim)),
+    ('fastmap', FastMap(n_dim)),
     ('scaler', sklearn.preprocessing.StandardScaler()),
     ('svc', sklearn.svm.SVC())
 ])
@@ -146,7 +146,7 @@ fastmapsvm = joblib.load('fastmapsvm.joblib')
 ## 6. Unsupervised clustering
 FastMap was originally designed for unsupervised cluster analysis, and can be trained in unsupervised mode by omitting the labels on training.
 ```python
-fm = FastMap(correlation_distance, 2)
+fm = FastMap(2)
 fm.fit(X_train)
 W = fm.transform(X_train)
 
