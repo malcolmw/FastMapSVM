@@ -26,7 +26,6 @@ class FastMapABC:
 
     def __init__(
         self, 
-        distance_func, 
         n_dim,
         show_progress=False,
         batch_size=DEFAULT_BATCH_SIZE
@@ -36,9 +35,6 @@ class FastMapABC:
 
         Parameters
         ----------
-        distance_func : function
-            The distance function D(A, B) that defines the distance between
-            objects A and B.
         n_dim : int
             The number of Euclidean dimensions.
         model_path : str, pathlib.Path
@@ -51,7 +47,6 @@ class FastMapABC:
         None.
 
         '''
-        self._distance_func = distance_func
         self._ihyprpln = 0
         self._n_dim = n_dim
         self._batch_size = batch_size
