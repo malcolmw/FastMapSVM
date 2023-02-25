@@ -59,7 +59,7 @@ def test():
     import sklearn.preprocessing
     import sklearn.svm
 
-    data_path = '/home/malcolmw/git/FastMap/data/ridgecrest.hdf5'
+    data_path = '../data/ridgecrest.hdf5'
     with h5py.File(data_path, mode='r') as in_file:
         X_train = in_file['/X/train'][:]
         y_train = in_file['/y/train'][:]
@@ -69,7 +69,7 @@ def test():
     
         
     pipe = sklearn.pipeline.Pipeline([
-        ('fastmap', FastMap(correlation_distance, 2)),
+        ('fastmap', FastMap(2)),
         ('scaler', sklearn.preprocessing.StandardScaler()),
         ('svc', sklearn.svm.SVC())
     ])
