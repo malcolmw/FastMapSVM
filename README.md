@@ -55,6 +55,33 @@ def correlate(a, b, axis=-1):
 
     return np.nan_to_num(x / norm, neginf=0, posinf=0)
 ```
+
+**Note**: If your distance cannot be easily vectorized, the code below implements a generic loop that applies the necessary broadcasting rules and calls the distance function in singleton fashion (i.e., on individual pairs of objects).
+
+```python
+def generic_distance(a, b, axis=-1):
+    # Build the output array with broadcasting rules applied.
+    shape = np.broadcast_shapes(a.shape, b.shape)
+    axis = axis if axis > 1 else len(shape) + axis
+    shape = shape[:axis] + shape[axis+1:]
+    output = np.empty(shape)
+    n_dim = output.ndim
+
+    # Loop over elements and compute distances serially.
+    for ijk in np.ndindex(*output.shape):
+        ijk_a = tuple([ijk[i] if a.shape[i] != 1 else 0 for i in range(len(ijk))])
+        ijk_b = tuple([ijk[i] if b.shape[i] != 1 else 0 for i in range(len(ijk))])
+        output[ijk] = dist(a[ijk_a], b[ijk_b])
+        
+    return output
+        
+def dist(a, b, axis=-1):
+    '''
+    Return the distance between objects a and b.
+    '''
+    return np.linalg.norm(a - b, axis=axis)
+```
+    
 ### 2.2 Implement concrete FastMap class.
 The `fastmap` module provides an abstract base class `fastmap.FastMapABC` that is not intended to be used directly. The user should define a child class that adds a `_distance_function` attribute to the abstract base class. Implementing the model this way supports models persistence.
 ```python
