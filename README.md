@@ -62,7 +62,7 @@ def correlate(a, b, axis=-1):
 def generic_distance(a, b, axis=-1):
     # Build the output array with broadcasting rules applied.
     shape = np.broadcast_shapes(a.shape, b.shape)
-    axis = axis if axis > 1 else len(shape) + axis
+    axis = axis if axis > -1 else len(shape) + axis
     shape = shape[:axis] + shape[axis+1:]
     output = np.empty(shape)
     n_dim = output.ndim
