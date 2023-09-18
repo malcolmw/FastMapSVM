@@ -1,5 +1,5 @@
 # FastMapSVM: An Algorithm for Classifying Complex Objects
-This is the official repository for the FastMapSVM algorithm associated with **"FastMapSVM: Classifying Complex Objects Using the FastMap algorithm and Support-Vector Machines"** (White et al., in review). The pre-print is available on arXiv: https://arxiv.org/abs/2204.05112. If you make use of this code, please cite White et al. (2022) where appropriate (full reference at bottom of page).
+This is the official repository for the FastMapSVM algorithm associated with **"Classifying seismograms using the FastMap algorithm and support-vector machines"** (White et al., 2023). If you make use of this code, please cite White et al. (2023) where appropriate (full reference at bottom of page).
 
 ![Perspicuous Visualization](resources/readme_figure.png)
 
@@ -185,6 +185,5 @@ ax.scatter(W[:, 0], W[:, 1])
 
 # References
 
-Faloutsos, C., & Lin, K.-I. (1995). FastMap: A Fast Algorithm for Indexing, Data-Mining and Visualization of Traditional and Multimedia Datasets. _ACM SIGMOD Record, 24_(2), 163–174. https://doi.org/10.1145/568271.223812
-
-White, M. C. A., Sharma, K., Li, A., Kumar, T. K. S., & Nakata, N. (2022). FastMapSVM: Classifying Complex Objects Using the FastMap Algorithm and Support-Vector Machines. _ArXiv_. http://arxiv.org/abs/2204.05112
+1. Faloutsos, C. & Lin, K.-I. FastMap: A Fast Algorithm for Indexing, Data-Mining and Visualization of Traditional and Multimedia Datasets. _Sigmod Rec_ **24**, 163–174 (1995).
+2. White, M. C. A., Sharma, K., Li, A., Kumar, T. K. S. & Nakata, N. Classifying seismograms using the FastMap algorithm and support-vector machines. _Commun. Eng._ **2**, 46 (2023).
